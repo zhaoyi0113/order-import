@@ -22,21 +22,15 @@ class DBWriter extends Writable {
     const chunkStr = chunk.toString();
     const lines = (this.leftChunks + chunkStr).split('\n');
     this.leftChunks = '';
-    const {idLines, customerIds} = this.parseData(lines);
+    const {validOrders, customerIds} = this.parseData(lines);
     this.queryCustomers(customerIds)
       .then(results => {
-        const orders = this.createOrders(results, idLines);
-        if (orders.length > 0) {
-          // do a batch insert
-          OrderModel.insertMany(orders)
-            .then(() => {
-              console.log(`Import ${orders.length} orders`);
-              callback();
-            })
-            .catch(err => console.error(err));
-        } else {
-          callback();
-        }
+        const orders = this.createOrders(results, validOrders);
+        return OrderModel.insertMany(orders);
+      })
+      .then(o => {
+        console.log(`Import ${o.length} orders`);
+        callback();
       })
       .catch(err => console.error(err));
   }
@@ -45,12 +39,12 @@ class DBWriter extends Writable {
    * parse string array to orders
    *
    * @param {*} lines	the array of order string
-	 * @returns	idLines: the map between custoer id and order string
-	 * 					customerIds: all customer ids in an array
+   * @returns	validLines: validate order data
+   * 					customerIds: all customer ids in an array
    */
   parseData(lines) {
     const customerIds = [];
-    const idLines = {};
+    const validOrders = [];
     lines.forEach((line, i) => {
       if (line.indexOf('orderId') >= 0) {
         // this is header line, skip
@@ -59,19 +53,24 @@ class DBWriter extends Writable {
       const items = line.split(',');
       if (items.length > 3 && items[1].length > 0) {
         customerIds.push(items[1]);
-        idLines[items[1]] = line;
+        validOrders.push({
+          orderId: items[0].trim(),
+          customerId: items[1].trim(),
+          item: items[2].trim(),
+          quantity: parseInt(items[3].trim(), 10),
+        });
       } else {
         this.leftChunks = line;
       }
     });
-    return {idLines, customerIds};
+    return {validOrders, customerIds};
   }
 
-	/**
-	 * query whether order customer id exists in customer collection
-	 * 
-	 * @param {*} customerIds 
-	 */
+  /**
+   * query whether order customer id exists in customer collection
+   *
+   * @param {*} customerIds
+   */
   queryCustomers(customerIds) {
     const orders = [];
     return new Promise(resolve => {
@@ -94,32 +93,24 @@ class DBWriter extends Writable {
     });
   }
 
-	/**
-	 * create order model object
-	 * @param {} matchedCustomers the customer object from mongodb
-	 * @param {} idLines	 the object which key is the customer id and value are the order data
-	 */
-  createOrders(matchedCustomers, idLines) {
-    const orders = [];
+  /**
+   * create order model object
+   * @param {} matchedCustomers the customer object from mongodb
+   * @param {} validOrders	 valid order data
+   */
+  createOrders(matchedCustomers, validOrders) {
+    let orderModels = [];
     if (!matchedCustomers || matchedCustomers.length === 0) {
       // not find, skip
-      return orders;
-      return;
+      return orderModels;
     }
     matchedCustomers.forEach(res => {
-      if (idLines[res.customerId]) {
-				const items = idLines[res.customerId].split(',');
-				
-        const order = new OrderModel({
-          orderId: items[0].trim(),
-          customerId: items[1].trim(),
-          item: items[2].trim(),
-          quantity: parseInt(items[3].trim()),
-        });
-        orders.push(order);
+			const orders = _.filter(validOrders, o => o.customerId === res.customerId);
+      if (orders) {
+        orderModels = orderModels.concat(orders.map(o => new OrderModel(o)));
       }
     });
-    return orders;
+    return orderModels;
   }
 }
 

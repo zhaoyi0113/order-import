@@ -1,0 +1,7 @@
+orderId,customerId,item,quantity
+100,17,Item 0,1
+101,17,Item 1,2
+102,18,Item 2,3
+103,18,Item 3,4
+104,18,Item 4,5
+105,6,Item 5,6

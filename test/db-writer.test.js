@@ -7,17 +7,12 @@ const DBWriter = require('../src/db-writer');
 
 // load test data
 const dbData = require('./data/test.json');
+const mockDb = require('./db-mock');
 
 describe('db writer test', () => {
   let controller;
 
-  before(done => {
-    mongoUnit
-      .start()
-      .then(url => (controller = new Controller(url)))
-      .then(() => mongoUnit.load(dbData))
-      .then(() => done());
-  });
+  before(() => mockDb().then(ctr => (controller = ctr)));
 
   after(() => mongoUnit.drop());
 
@@ -56,50 +51,82 @@ describe('db writer test', () => {
       },
     ];
     const dbWriter = new DBWriter();
-    const orders = dbWriter.createOrders(customers, {
-      '17': '1,17,item1,100',
-      '18': '2,18,item2,200',
-      '18': '2,333,item2,200',
-    });
-    assert.equal(orders.length, 2);
+    const orders = dbWriter.createOrders(customers, [
+      {
+        orderId: '1',
+        customerId: '17',
+        item: 'item1',
+        quantity: 100,
+      },
+      {
+        orderId: '2',
+        customerId: '18',
+        item: 'item2',
+        quantity: 100,
+      },
+      {
+        orderId: '3',
+        customerId: '18',
+        item: 'item3',
+        quantity: 100,
+      },
+    ]);
+    assert.equal(orders.length, 3);
     assert.equal(orders[0].orderId, '1');
     assert.equal(orders[1].orderId, '2');
+    assert.equal(orders[2].orderId, '3');
   });
 
-  it('test parse line data', done => {
+  it('test parse line data', () => {
     const lines = [
       '99997,99997,Item 99996,99997',
       '99998,99998,Item 99997,99998',
       '99999,99999,Item 99998,99999',
     ];
     const dbWriter = new DBWriter();
-    const {idLines, customerIds} = dbWriter.parseData(lines);
+    const {validOrders, customerIds} = dbWriter.parseData(lines);
     assert.equal(customerIds.length, 3);
     assert.equal(customerIds[0], '99997');
     assert.equal(customerIds[1], '99998');
     assert.equal(customerIds[2], '99999');
 
-    assert.equal(idLines['99997'], '99997,99997,Item 99996,99997');
-    assert.equal(idLines['99998'], '99998,99998,Item 99997,99998');
-    assert.equal(idLines['99999'], '99999,99999,Item 99998,99999');
-
-    done();
+    assert.equal(validOrders.length, 3);
+    assert.deepEqual(validOrders[0], {
+      orderId: '99997',
+      customerId: '99997',
+      item: 'Item 99996',
+      quantity: '99997',
+    });
+    assert.deepEqual(validOrders[1], {
+      orderId: '99998',
+      customerId: '99998',
+      item: 'Item 99997',
+      quantity: '99998',
+    });
+    assert.deepEqual(validOrders[2], {
+      orderId: '99999',
+      customerId: '99999',
+      item: 'Item 99998',
+      quantity: '99999',
+    });
   });
 
-  it('test write chunk', done => {
-    // const writer = new DBWriter(dbConfig);
-    // const lines = ['99987,99987,Item 99986,99987'];
-    // writer.parseData(lines);
-    console.log('done parse data');
-    CustomersModel.find({customerId: '17'})
-      .then(res => {
-        console.log('get ret', res);
-        assert.notEqual(res, null);
-        done();
-      })
-      .catch(err => {
-        console.error(err);
-        done();
-      });
+  it('test find 0 orders', () => {
+    const dbWriter = new DBWriter();
+    let orders = dbWriter.createOrders(
+      [],
+      [
+        {
+          orderId: '99997',
+          customerId: '99997',
+          item: 'Item 99996',
+          quantity: '99997',
+        },
+      ]
+    );
+    assert.equal(orders.length, 0);
+
+    orders = dbWriter.createOrders([], {});
+    assert.equal(orders.length, 0);
   });
 });
