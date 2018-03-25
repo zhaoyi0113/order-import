@@ -19,8 +19,13 @@ describe('test controller', () => {
         return OrderModel.find();
       })
       .then(orders => {
-				console.log(orders);
         assert.equal(orders.length, 7);
 			});
-  });
+	});
+	
+	it('test read not existed file', () => {
+		return controller
+      .process('./test/data/not_existed.csv')
+			.catch((err) => assert.notEqual(err, null));
+	});
 });

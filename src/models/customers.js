@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 // customers data schema
 const customersSchema = mongoose.Schema({
-  customerId: String,
+  customerId: {type: String, unique: true},
   firstName: String,
   lastName: String,
 });

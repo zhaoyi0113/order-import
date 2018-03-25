@@ -8,7 +8,7 @@ const DBWriter = require('./db-writer');
  * control the read write stream pipeline
  */
 class Controller {
-  constructor(url, options={}) {
+  constructor(url, options = {}) {
     // connect to mongodb instance
     mongoose.connect(url, options);
   }
@@ -17,23 +17,21 @@ class Controller {
    * @param {*} url
    */
   process(url) {
-		return new Promise((resolve, reject) => {
-			const dbWriter = new DBWriter();
-			const s = fs
-				.createReadStream(url, {
-					flags: 'r',
-					encoding: 'utf-8',
-					fd: null,
-				})
-				.pipe(dbWriter);
-			s.on('finish', () => {
-				console.log('Import orders completed!');
-				resolve();
-			});
-			s.on('error', (err) => reject(err));
-		});
-  }
+    return new Promise((resolve, reject) => {
+      const dbWriter = new DBWriter();
+      const s = fs.createReadStream(url, {
+        flags: 'r',
+        encoding: 'utf-8',
+        fd: null,
+      });
 
+      s.on('error', err => reject(err));
+      s.pipe(dbWriter).on('finish', () => {
+        console.log('Import orders completed!');
+        resolve();
+      });
+    });
+  }
 }
 
 module.exports = Controller;

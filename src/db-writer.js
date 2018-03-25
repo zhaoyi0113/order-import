@@ -8,7 +8,7 @@ const {OrderModel, CustomersModel} = require('./models');
 class DBWriter extends Writable {
   constructor() {
     super();
-    this.leftChunks = '';
+    this.leftChunks = '';	// save the incomplete data
   }
 
   /**
@@ -25,10 +25,12 @@ class DBWriter extends Writable {
     const {validOrders, customerIds} = this.parseData(lines);
     this.queryCustomers(customerIds)
       .then(results => {
+				// create order model
         const orders = this.createOrders(results, validOrders);
         return OrderModel.insertMany(orders);
       })
       .then(o => {
+				// write completed call the next chunk
         console.log(`Import ${o.length} orders`);
         callback();
       })
@@ -52,7 +54,9 @@ class DBWriter extends Writable {
       }
       const items = line.split(',');
       if (items.length > 3 && items[1].length > 0) {
-        customerIds.push(items[1]);
+				if(customerIds.indexOf(items[1]) < 0){
+					customerIds.push(items[1]);
+				}
         validOrders.push({
           orderId: items[0].trim(),
           customerId: items[1].trim(),
